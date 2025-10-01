@@ -2,9 +2,17 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras import datasets, layers, models
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.datasets import cifar10
+from keras.utils import to_categorical
 
-(training_images, training_labels), (testing_images, testing_labels) = datasets.cifar10.load_data()
-training_images, testing_images =training_images/255, testing_images/255
+
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+x_train = x_train.astype('float32')/255
+x_test = x_test.astype('float32')/255
+
+y_train_categorical = to_categorical(y_train, 10)
+y_test_categorical = to_categorical(y_test, 10)
 
 class_names = ['Plane', 'Car', 'Bird', 'Cat', 'Deer', 'Dog', 'Frog', 'Horse', 'Ship', 'Truck']
 
@@ -16,38 +24,67 @@ class_names = ['Plane', 'Car', 'Bird', 'Cat', 'Deer', 'Dog', 'Frog', 'Horse', 'S
     plt.xlabel(class_names[training_labels[i][0]])
 plt.show()'''
 
-training_images = training_images[:20000]
-training_labels = training_labels[:20000]
-testing_images = testing_images[:4000]
-testing_labels = testing_labels[:4000]
 
-'''model = models.Sequential()
-model.add(layers.Conv2D(32,(3,3), activation= 'relu', input_shape=(32,32,3)))
-model.add(layers.MaxPooling2D((2,2)))
-model.add(layers.Conv2D(32,(3,3), activation= 'relu'))
-model.add(layers.MaxPooling2D((2,2)))
-model.add(layers.Conv2D(64,(3,3), activation= 'relu'))
-model.add(layers.Flatten())
-model.add(layers.Dense(64, activation= 'relu'))
-model.add(layers.Dense(10, activation= 'softmax'))
 
-model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-model.fit(training_images, training_labels, epochs=10, validation_data=(testing_images, testing_labels))
+model2 = models.Sequential()
+model2.add(layers.Input(shape=(32, 32, 3)))
 
-loss, accuracy = model.evaluate(testing_images, testing_labels)
+model2.add(layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+model2.add(layers.MaxPooling2D((2,2)))
+
+model2.add(layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+model2.add(layers.MaxPooling2D((2,2)))
+model2.add(layers.Dropout(0.30))
+
+
+#Flatten
+model2.add(layers.Flatten())
+
+model2.add(layers.Dense(512, activation='relu'))
+model2.add(layers.BatchNormalization())
+model2.add(layers.Dropout(0.2))
+model2.add(layers.Dense(10, activation='softmax'))
+
+model2.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+ Define EarlyStopping callback
+early_stop = EarlyStopping(
+    monitor='val_loss',
+    patience=5,
+    restore_best_weights=True # rollback to the best weights
+)
+
+
+
+# Train model with early stopping
+history1 = model2.fit(
+    x_train, y_train_categorical,
+    epochs=50,
+    batch_size=64,
+    validation_data=(x_test, y_test_categorical),
+    callbacks=[early_stop],
+    verbose=2
+)
+
+'''plt.figure(figsize=(10,5))
+plt.subplot(1,2,1)
+plt.plot(history1.history['accuracy'])
+plt.plot(history1.history['val_accuracy'])
+plt.title('model ANN accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'val'], loc='upper left')
+
+plt.subplot(1,2,2)
+plt.plot(history1.history['loss'])
+plt.plot(history1.history['val_loss'])
+plt.title('model ANN loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')'''
+
+loss, accuracy = model2.evaluate(x_test, y_test_categorical)
 print(f"Loss:{loss}")
 print(f"Accuracy:{accuracy}")
 
-model.save('image_classifier.model')'''
-model = models.load_model('image_classifier.model')
-img = cv2.imread('deer.jpg')
-img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+model2.save("image_classifier.keras")
 
-plt.imshow(img, cmap=plt.cm.binary)
-
-
-prediction = model.predict(np.array([img])/255)
-index = np.argmax(prediction)
-print(f'prediction is {class_names[index]}')
-
-plt.show()
